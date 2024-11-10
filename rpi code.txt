@@ -1,0 +1,76 @@
+import tkinter as tk
+import paho.mqtt.client as mqtt
+
+# MQTT broker settings
+mqtt_broker = "broker.hivemq.com"  # HiveMQ's public broker
+mqtt_port = 1883                   # Default MQTT port for HiveMQ
+mqtt_topic_sensor = "sensor/data"  # Topic for temperature data
+mqtt_topic_gps = "gps/data"        # Topic for GPS coordinates
+mqtt_topic_satellites = "gps/satellites"
+mqtt_topic_error = "sensor/error"
+
+# Callback for connection
+def on_connect(client, userdata, flags, rc):
+    if rc == 0:
+        print("Connected to HiveMQ MQTT broker")
+        # Subscribe to relevant topics
+        client.subscribe([(mqtt_topic_sensor, 0), (mqtt_topic_gps, 0), 
+                          (mqtt_topic_satellites, 0), (mqtt_topic_error, 0)])
+    else:
+        print(f"Failed to connect, return code {rc}")
+
+# Callback for receiving messages
+def on_message(client, userdata, msg):
+    # Handle temperature data
+    if msg.topic == mqtt_topic_sensor:
+        temperature_data.set(msg.payload.decode('utf-8'))
+    # Handle GPS data
+    elif msg.topic == mqtt_topic_gps:
+        gps_data.set(msg.payload.decode('utf-8'))
+    # Handle error data if any
+    elif msg.topic == mqtt_topic_error:
+        error_data.set(msg.payload.decode('utf-8'))
+
+# MQTT client setup
+client = mqtt.Client("RaspberryPiClient", protocol=mqtt.MQTTv311)
+client.on_connect = on_connect
+client.on_message = on_message
+
+# Connect to the broker
+try:
+    client.connect(mqtt_broker, mqtt_port, 60)
+except Exception as e:
+    print(f"Error connecting to MQTT broker: {e}")
+
+# Tkinter GUI setup
+root = tk.Tk()
+root.title("Real-time Sensor and GPS Data")
+root.geometry("400x300")
+
+# Labels for temperature data
+tk.Label(root, text="Temperature (DHT Sensor):", font=("Arial", 14)).pack(pady=10)
+temperature_data = tk.StringVar()
+temperature_data.set("Waiting for temperature data...")
+tk.Label(root, textvariable=temperature_data, font=("Arial", 12)).pack()
+
+# Labels for GPS data
+tk.Label(root, text="GPS Coordinates:", font=("Arial", 14)).pack(pady=10)
+gps_data = tk.StringVar()
+gps_data.set("Waiting for GPS coordinates...")
+tk.Label(root, textvariable=gps_data, font=("Arial", 12)).pack()
+
+# Error data label
+tk.Label(root, text="Error Data:", font=("Arial", 14)).pack(pady=10)
+error_data = tk.StringVar()
+error_data.set("No errors")
+tk.Label(root, textvariable=error_data, font=("Arial", 12)).pack()
+
+# MQTT loop integration with Tkinter
+def mqtt_loop():
+    client.loop(timeout=1.0)  # Run the MQTT client loop
+    root.after(100, mqtt_loop)  # Repeat every 100 ms
+
+# Start the MQTT loop in Tkinter
+root.after(100, mqtt_loop)
+print("Starting Tkinter main loop...")
+root.mainloop()
